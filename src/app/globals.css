@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-outfit), Arial, Helvetica, sans-serif;
+  
+  --color-brand-50: #fef8f0;
+  --color-brand-100: #fdecdb;
+  --color-brand-200: #f9d5b7;
+  --color-brand-300: #f4b689;
+  --color-brand-400: #ef8e52;
+  --color-brand-500: #ec6e2b; /* Saffron base */
+  --color-brand-600: #de551f;
+  --color-brand-700: #b9401b; /* Deep Maroon accents */
+  --color-brand-800: #93331d;
+  --color-brand-900: #762d1a;
+  
+  --color-accent-gold: #d4af37;
+  
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f4f4f5;
+  --color-surface-800: #27272a;
+  --color-surface-900: #18181b;
+}
+
+:root {
+  --background: var(--color-brand-50);
+  --foreground: var(--color-surface-900);
+}
+
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+@layer utilities {
+  .glassmorphism {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 dark:bg-black/40 dark:border-white/10;
+  }
+  .card-shadow {
+    @apply shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)];
+  }
+}

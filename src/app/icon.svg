@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background -->
+  <rect width="512" height="512" rx="120" fill="#ec6e2b"/>
+  <!-- Map Pin / Diya Hybrid Shape -->
+  <path d="M256 96C185.3 96 128 153.3 128 224C128 320 256 416 256 416C256 416 384 320 384 224C384 153.3 326.7 96 256 96Z" fill="#ffffff"/>
+  <!-- Inner Circle (Om / Center) -->
+  <circle cx="256" cy="224" r="48" fill="#ec6e2b"/>
+</svg>
