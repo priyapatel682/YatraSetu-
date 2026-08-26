@@ -20,15 +20,39 @@ if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
 }
 
 // Multer Setup for Image Uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
-  }
-});
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
+// ImgBB Upload Helper
+const uploadToImgBB = async (buffer, originalname) => {
+  try {
+    const apiKey = process.env.IMGBB_API_KEY || '19fda8f819ca96a8eb81ae890b37c017';
+    const base64Image = buffer.toString('base64');
+    const url = `https://api.imgbb.com/1/upload?key=${apiKey}`;
+    
+    const body = new URLSearchParams();
+    body.append('image', base64Image);
+    if (originalname) {
+      body.append('name', originalname.split('.')[0]);
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      body: body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      return data.data.url;
+    } else {
+      throw new Error('ImgBB error: ' + (data.error?.message || 'Unknown error'));
+    }
+  } catch (err) {
+    console.error('ImgBB Upload Error:', err);
+    throw err;
+  }
+};
 
 // In-Memory Fallback Database
 let isMongoConnected = false;
@@ -218,7 +242,7 @@ const Post = require('./models/Post');
 const User = require('./models/User');
 
 // Helper to parse form data
-const parseTempleData = (body, files) => {
+const parseTempleData = async (body, files) => {
   const data = { ...body };
   
   // Parse stringified JSON arrays/objects from FormData
@@ -236,14 +260,16 @@ const parseTempleData = (body, files) => {
 
   // Handle Cover Image
   if (files && files['coverImage'] && files['coverImage'].length > 0) {
-    data.coverImage = `/uploads/${files['coverImage'][0].filename}`;
+    data.coverImage = await uploadToImgBB(files['coverImage'][0].buffer, files['coverImage'][0].originalname);
   } else if (data.existingCoverImage) {
     data.coverImage = data.existingCoverImage;
   }
 
   // Handle Gallery Images
   if (files && files['images'] && files['images'].length > 0) {
-    const newImages = files['images'].map(file => `/uploads/${file.filename}`);
+    const uploadPromises = files['images'].map(file => uploadToImgBB(file.buffer, file.originalname));
+    const newImages = await Promise.all(uploadPromises);
+    
     let existingImages = [];
     if (data.existingImages) {
       existingImages = JSON.parse(data.existingImages);
@@ -257,10 +283,10 @@ const parseTempleData = (body, files) => {
 };
 
 // Helper to parse post data
-const parsePostData = (body, files) => {
+const parsePostData = async (body, files) => {
   const data = { ...body };
   if (files && files.length > 0) {
-    data.image = `/uploads/${files[0].filename}`;
+    data.image = await uploadToImgBB(files[0].buffer, files[0].originalname);
   } else if (data.existingImage) {
     data.image = data.existingImage;
   }
@@ -286,7 +312,7 @@ app.get('/api/temples', async (req, res) => {
 // Create a new temple
 app.post('/api/temples', upload.fields([{ name: 'coverImage', maxCount: 1 }, { name: 'images', maxCount: 5 }]), async (req, res) => {
   try {
-    const templeData = parseTempleData(req.body, req.files);
+    const templeData = await parseTempleData(req.body, req.files);
     
     // Default to pending if submitted by a contributor
     templeData.status = req.body.status || 'pending';
@@ -327,7 +353,7 @@ app.get('/api/temples/:id', async (req, res) => {
 // Update a temple
 app.put('/api/temples/:id', upload.fields([{ name: 'coverImage', maxCount: 1 }, { name: 'images', maxCount: 5 }]), async (req, res) => {
   try {
-    const templeData = parseTempleData(req.body, req.files);
+    const templeData = await parseTempleData(req.body, req.files);
 
     if (isMongoConnected) {
       const updatedTemple = await Temple.findByIdAndUpdate(req.params.id, templeData, { new: true });
@@ -399,7 +425,7 @@ app.get('/api/posts', async (req, res) => {
 // Create a new post
 app.post('/api/posts', upload.array('coverImage', 1), async (req, res) => {
   try {
-    const postData = parsePostData(req.body, req.files);
+    const postData = await parsePostData(req.body, req.files);
     
     // Default to pending if submitted by a contributor
     postData.status = req.body.status || 'pending';
@@ -440,7 +466,7 @@ app.get('/api/posts/:id', async (req, res) => {
 // Update a post
 app.put('/api/posts/:id', upload.array('coverImage', 1), async (req, res) => {
   try {
-    const postData = parsePostData(req.body, req.files);
+    const postData = await parsePostData(req.body, req.files);
     if (isMongoConnected) {
       const updatedPost = await Post.findByIdAndUpdate(req.params.id, postData, { new: true });
       if (!updatedPost) return res.status(404).json({ error: 'Post not found' });
