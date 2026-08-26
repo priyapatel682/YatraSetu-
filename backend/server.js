@@ -4,6 +4,8 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
+const FormData = require('form-data');
 require('dotenv').config();
 
 const app = express();
@@ -27,29 +29,22 @@ const upload = multer({ storage });
 const uploadToImgBB = async (buffer, originalname) => {
   try {
     const apiKey = process.env.IMGBB_API_KEY || '19fda8f819ca96a8eb81ae890b37c017';
-    const base64Image = buffer.toString('base64');
-    const url = `https://api.imgbb.com/1/upload?key=${apiKey}`;
+    const form = new FormData();
     
-    const body = new URLSearchParams();
-    body.append('image', base64Image);
-    if (originalname) {
-      body.append('name', originalname.split('.')[0]);
-    }
+    // ImgBB API supports direct file buffer uploads via multipart/form-data
+    form.append('image', buffer, originalname || 'image.jpg');
     
-    const response = await fetch(url, {
-      method: 'POST',
-      body: body,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    const response = await axios.post(`https://api.imgbb.com/1/upload?key=${apiKey}`, form, {
+      headers: form.getHeaders()
     });
     
-    const data = await response.json();
-    if (data.success) {
-      return data.data.url;
+    if (response.data && response.data.success) {
+      return response.data.data.url;
     } else {
-      throw new Error('ImgBB error: ' + (data.error?.message || 'Unknown error'));
+      throw new Error('ImgBB error: Unknown');
     }
   } catch (err) {
-    console.error('ImgBB Upload Error:', err);
+    console.error('ImgBB Upload Error:', err.response?.data || err.message);
     throw err;
   }
 };
