@@ -4,8 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios');
-const FormData = require('form-data');
+const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
 const app = express();
@@ -25,28 +24,28 @@ if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// ImgBB Upload Helper
-const uploadToImgBB = async (buffer, originalname) => {
-  try {
-    const apiKey = process.env.IMGBB_API_KEY || '19fda8f819ca96a8eb81ae890b37c017';
-    const form = new FormData();
-    
-    // ImgBB API supports direct file buffer uploads via multipart/form-data
-    form.append('image', buffer, originalname || 'image.jpg');
-    
-    const response = await axios.post(`https://api.imgbb.com/1/upload?key=${apiKey}`, form, {
-      headers: form.getHeaders()
-    });
-    
-    if (response.data && response.data.success) {
-      return response.data.data.url;
-    } else {
-      throw new Error('ImgBB error: Unknown');
-    }
-  } catch (err) {
-    console.error('ImgBB Upload Error:', err.response?.data || err.message);
-    throw err;
-  }
+// Cloudinary Setup
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'vusd4idx', 
+  api_key: process.env.CLOUDINARY_API_KEY || '148688538784341', 
+  api_secret: process.env.CLOUDINARY_API_SECRET // User must provide this in .env or Render
+});
+
+// Cloudinary Upload Helper
+const uploadToCloudinary = (buffer, folder = 'yatrasetu') => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: folder },
+      (error, result) => {
+        if (error) {
+          console.error('Cloudinary Upload Error:', error);
+          return reject(error);
+        }
+        resolve(result.secure_url);
+      }
+    );
+    uploadStream.end(buffer);
+  });
 };
 
 // In-Memory Fallback Database
@@ -255,14 +254,14 @@ const parseTempleData = async (body, files) => {
 
   // Handle Cover Image
   if (files && files['coverImage'] && files['coverImage'].length > 0) {
-    data.coverImage = await uploadToImgBB(files['coverImage'][0].buffer, files['coverImage'][0].originalname);
+    data.coverImage = await uploadToCloudinary(files['coverImage'][0].buffer);
   } else if (data.existingCoverImage) {
     data.coverImage = data.existingCoverImage;
   }
 
   // Handle Gallery Images
   if (files && files['images'] && files['images'].length > 0) {
-    const uploadPromises = files['images'].map(file => uploadToImgBB(file.buffer, file.originalname));
+    const uploadPromises = files['images'].map(file => uploadToCloudinary(file.buffer));
     const newImages = await Promise.all(uploadPromises);
     
     let existingImages = [];
@@ -281,7 +280,7 @@ const parseTempleData = async (body, files) => {
 const parsePostData = async (body, files) => {
   const data = { ...body };
   if (files && files.length > 0) {
-    data.image = await uploadToImgBB(files[0].buffer, files[0].originalname);
+    data.image = await uploadToCloudinary(files[0].buffer);
   } else if (data.existingImage) {
     data.image = data.existingImage;
   }
